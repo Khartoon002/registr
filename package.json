@@ -4,13 +4,14 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "prisma": "prisma",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
     "copy:sqlite": "node scripts/copy-sqlite-to-supabase.mjs",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "seed": "prisma db seed"
   },
   "dependencies": {
