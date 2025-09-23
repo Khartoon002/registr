@@ -1,8 +1,10 @@
+// middleware.ts
 import { NextResponse, NextRequest } from "next/server";
+
 const PUBLIC_FILE = /\.(.*)$/;
 
 const ROOT_LOGIN_PATH = "/login";
-const ROOT_SESSION_COOKIES = ["adminSession"]; // <-- whatever your root cookie is
+const ROOT_SESSION_COOKIES = ["adminSession"]; // cookie for normal admin
 const BOTS_LOGIN_PATH = "/admin/bots/login";
 const BOTS_COOKIE = "bots_admin";
 
@@ -13,26 +15,35 @@ function hasAnyCookie(req: NextRequest, names: string[]) {
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
-  // Skip static & API
+  // --- PUBLIC ROUTES ---
+  if (
+    pathname.startsWith("/bots/") ||
+    pathname === "/registrations" ||
+    pathname.startsWith("/registrations/")
+  ) {
+    return NextResponse.next();
+  }
+
+  // --- ALLOW STATIC & API ROUTES ---
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/public") ||
     pathname.startsWith("/api") ||
     PUBLIC_FILE.test(pathname)
-  ) return NextResponse.next();
-
-  // ✅ PUBLIC: bots viewer should be open to everyone
-  if (pathname === "/bots" || pathname.startsWith("/bots/")) {
+  ) {
     return NextResponse.next();
   }
 
-  // 🔒 BOTS ADMIN: still protected
+  // --- BOTS ADMIN ---
   if (pathname.startsWith("/admin/bots")) {
-    if (pathname.startsWith(BOTS_LOGIN_PATH) || pathname.startsWith("/admin/bots/logout")) {
+    if (
+      pathname.startsWith(BOTS_LOGIN_PATH) ||
+      pathname.startsWith("/admin/bots/logout")
+    ) {
       return NextResponse.next();
     }
     const token = req.cookies.get(BOTS_COOKIE)?.value || "";
-    const need  = process.env.BOTS_ADMIN_TOKEN || "";
+    const need = process.env.BOTS_ADMIN_TOKEN || "";
     if (!need || token !== need) {
       const url = req.nextUrl.clone();
       url.pathname = BOTS_LOGIN_PATH;
@@ -42,12 +53,15 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 🔓 Allow root login/logout pages
-  if (pathname.startsWith(ROOT_LOGIN_PATH) || pathname === "/logout") {
+  // --- ROOT LOGIN/LOGOUT ---
+  if (
+    pathname.startsWith(ROOT_LOGIN_PATH) ||
+    pathname === "/logout"
+  ) {
     return NextResponse.next();
   }
 
-  // 🔒 Everything else at root requires session
+  // --- EVERYTHING ELSE REQUIRES ROOT SESSION ---
   if (!hasAnyCookie(req, ROOT_SESSION_COOKIES)) {
     const url = req.nextUrl.clone();
     url.pathname = ROOT_LOGIN_PATH;

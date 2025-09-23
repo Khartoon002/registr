@@ -1,19 +1,25 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import "../../admin/bots/glass.css";
+import AddPackageForm from "./_add-package";
 
-export const revalidate = 0; // never cache; always fetch fresh on Vercel
+export const revalidate = 0;
 
 export default async function ProjectView({ params }: { params: { id: string } }) {
   const project = await prisma.project.findUnique({
     where: { id: params.id },
     select: {
-      id: true, name: true, slug: true, description: true, status: true,
-      defaultWhatsApp: true, taskerTag: true, createdAt: true, updatedAt: true,
-      packages: { select: { id: true, name: true, slug: true, status: true } },
-      bots: {                           // only if your schema links Bot -> projectId
-        select: { id: true, name: true, slug: true, isActive: true }
+      id: true,
+      name: true,
+      slug: true,
+      description: true,
+      status: true,
+      packages: {
+        select: { id: true, name: true, slug: true, status: true },
+        orderBy: { createdAt: "desc" }
       },
+      // Remove if your Bot doesn’t have projectId relation
+      bots: { select: { id: true, name: true, slug: true, isActive: true } }
     },
   });
 
@@ -28,8 +34,16 @@ export default async function ProjectView({ params }: { params: { id: string } }
           {project.description && <p style={{ marginTop: 8 }}>{project.description}</p>}
 
           <div className="g-row" style={{ marginTop: 16 }}>
+            {/* 📦 Packages section */}
             <div className="g-card" style={{ flex: 1 }}>
-              <h2 className="g-sub">Packages</h2>
+              <div className="g-row" style={{ alignItems: "center" }}>
+                <h2 className="g-sub">Packages</h2>
+                <div style={{ marginLeft: "auto" }}>
+                  {/* No need for ts-expect-error, AddPackageForm should be a client component */}
+                  <AddPackageForm projectId={project.id} />
+                </div>
+              </div>
+
               <div className="g-table" style={{ marginTop: 8 }}>
                 {project.packages.length === 0 && <div className="g-sub">No packages yet.</div>}
                 {project.packages.map(p => (
@@ -44,13 +58,13 @@ export default async function ProjectView({ params }: { params: { id: string } }
               </div>
             </div>
 
+            {/* 🤖 Bots section */}
             <div className="g-card" style={{ flex: 1 }}>
               <h2 className="g-sub">Bots</h2>
               <div className="g-table" style={{ marginTop: 8 }}>
-                {/* If you don't actually have Bot.projectId, remove this block or keep empty */}
                 {!project.bots?.length && <div className="g-sub">No bots linked.</div>}
                 {project.bots?.map(b => (
-                  <div key={b.id} className="g-table-row" style={{ gridTemplateColumns: "2fr 1fr 1fr" }}>
+                  <div key={b.id} className="g-table-row" style={{ gridTemplateColumns: "2fr 1fr 1.3fr" }}>
                     <div><b>{b.name}</b> <span className="g-sub">/{b.slug}</span></div>
                     <div>{b.isActive ? "Active" : "Inactive"}</div>
                     <div className="g-table-actions">
@@ -61,8 +75,8 @@ export default async function ProjectView({ params }: { params: { id: string } }
                 ))}
               </div>
             </div>
-          </div>
 
+          </div>
         </div>
       </div>
     </section>
