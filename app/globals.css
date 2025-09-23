@@ -1,0 +1,35 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-surface text-ink;
+  background-image:
+    radial-gradient(60rem 60rem at 85% 10%, rgba(11,100,216,.18), transparent 55%),
+    radial-gradient(60rem 60rem at 10% 85%, rgba(8,76,166,.14), transparent 55%),
+    #0F172A;
+}
+
+.glass {
+  @apply bg-white/10 border border-white/20 backdrop-blur-md shadow-glass;
+}
+.btn {
+  @apply px-4 py-2 rounded-xl font-medium transition hover:opacity-90 active:opacity-80;
+}
+.btn-brand {
+  @apply btn bg-brand text-white shadow-glow;
+}
+.card {
+  @apply glass rounded-2xl p-5;
+}
+.table {
+  @apply w-full text-sm;
+}
+.table th, .table td {
+  @apply px-3 py-2 text-left border-b border-white/10;
+}
