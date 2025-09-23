@@ -1,7 +1,6 @@
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  experimental: { serverActions: true }
+  // remove: experimental: { serverActions: true/false }
 };
+
 export default nextConfig;
