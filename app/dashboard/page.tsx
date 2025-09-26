@@ -1,24 +1,33 @@
+import { prisma } from "@/lib/db";
+import DashboardContent from "./DashboardContent";
 
-import Nav from '../nav'
-import { Card } from '@/components/ui'
+export const revalidate = 0;
 
-export default function Dashboard() {
-  return (
-    <main>
-      <Nav />
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
-        <h1 className="text-2xl font-bold">Administrator Dashboard</h1>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card><div className="text-sm opacity-80">Total Projects</div><div className="text-3xl font-semibold mt-2">—</div></Card>
-          <Card><div className="text-sm opacity-80">Total Packages</div><div className="text-3xl font-semibold mt-2">—</div></Card>
-          <Card><div className="text-sm opacity-80">Total Downlines</div><div className="text-3xl font-semibold mt-2">—</div></Card>
-          <Card><div className="text-sm opacity-80">Last 7 days</div><div className="text-3xl font-semibold mt-2">—</div></Card>
-        </div>
-        <Card>
-          <h3 className="text-lg font-semibold mb-2">Recent Activity</h3>
-          <div className="opacity-70">Audit log list goes here…</div>
-        </Card>
-      </div>
-    </main>
-  )
+export default async function DashboardPage() {
+  const since = new Date(); since.setDate(since.getDate()-7);
+
+  const [totalProjects,totalPackages,totalDownlines, registrationsLast7Days] = await Promise.all([
+    prisma.project.count({ where:{ deleted:false, archivedAt:null }}),
+    prisma.package.count({ where:{ project:{ deleted:false, archivedAt:null }} }),
+    prisma.downline.count(),
+    prisma.personLink.count({ where:{ createdAt:{ gte: since }}}),
+  ]);
+
+  const recent = await prisma.downline.findMany({
+    orderBy:{ createdAt:"desc" }, take:5,
+    select:{ fullName:true, createdAt:true,
+      Project:{ select:{ name:true }}, Package:{ select:{ name:true }}
+    }
+  });
+
+  const initialStats = {
+    totalProjects, totalPackages, totalDownlines, registrationsLast7Days,
+    logs: recent.map(r=>({
+      name: r.fullName,
+      projectName: r.Project?.name || "-",
+      packageName: r.Package?.name || "-",
+      date: r.createdAt.toISOString(),
+    }))
+  };
+  return <DashboardContent initialStats={initialStats} />;
 }

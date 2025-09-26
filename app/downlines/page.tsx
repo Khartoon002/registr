@@ -1,41 +1,48 @@
-import { prisma } from "@/lib/db";          // if no "@/lib" alias, use: import { prisma } from "../../lib/db";
-import DownlinesTable from "./_table";
+import { prisma } from "@/lib/db";
+import Table from "./table";
+
+export const revalidate = 0;
 
 export default async function DownlinesPage() {
   const rows = await prisma.downline.findMany({
+    where: { Project: { deleted: false, archivedAt: null } },
     orderBy: { createdAt: "desc" },
     select: {
-      id: true, fullName: true, username: true, phone: true, email: true,
-      uniqueCode: true, createdAt: true, passwordPlain: true,
+      id: true,
+      fullName: true,
+      username: true,
+      phone: true,
+      email: true,
+      uniqueCode: true,
+      createdAt: true,
       Project: { select: { name: true } },
       Package: { select: { name: true } },
     },
   });
 
-  const items = rows.map(r => ({
+  const data = rows.map(r => ({
     id: r.id,
-    fullName: r.fullName,
+    name: r.fullName,
     username: r.username,
     phone: r.phone,
-    email: r.email || "",
-    uniqueCode: r.uniqueCode,
-    createdAt: r.createdAt.toISOString(),
-    password: r.passwordPlain || "",
-    projectName: r.Project?.name || "",
-    packageName: r.Package?.name || "",
+    email: r.email ?? "",
+    code: r.uniqueCode,
+    projectName: r.Project?.name ?? "",
+    packageName: r.Package?.name ?? "",
+    registered: r.createdAt.toISOString(),
   }));
 
   return (
-    <div className="g-card">
-      <div className="g-row">
-        <div>
-          <h1 className="g-title">Downlines</h1>
-          <p className="g-sub">Passwords are visible to admins only. You can export to CSV.</p>
+    <main className="g-body">
+      <div className="g-card">
+        <div className="g-row">
+          <div>
+            <h1 className="g-title">Downlines</h1>
+            <p className="g-sub">All registrations across active projects.</p>
+          </div>
         </div>
-        <a className="g-btn" href="/api/downlines/export">Export CSV</a>
+        <Table initialData={data} />
       </div>
-
-      <DownlinesTable items={items} />
-    </div>
+    </main>
   );
 }

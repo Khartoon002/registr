@@ -1,56 +1,81 @@
 "use client";
+
 import { useState } from "react";
 
 export default function Form({ token }: { token: string }) {
-  const [fullName, setFullName] = useState("");
-  const [username, setUsername] = useState("");
-  const [phone, setPhone]       = useState("");
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [ok, setOk]             = useState<null|{whatsapp_url:string, vcf_url:string}>(null);
-  const [err, setErr]           = useState<string|null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
+  const [whatsAppUrl, setWhatsAppUrl] = useState<string | null>(null);
+  const [vcfUrl, setVcfUrl] = useState<string | null>(null);
 
-  async function submit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true); setErr(null);
+    setBusy(true); setErr(null);
+
+    const fd = new FormData(e.currentTarget);
+    const payload = {
+      token,
+      fullName: String(fd.get("fullName") || ""),
+      username: String(fd.get("username") || ""),
+      password: String(fd.get("password") || ""),
+      phone: String(fd.get("phone") || ""),
+      email: String(fd.get("email") || ""),
+    };
+
     try {
       const res = await fetch("/api/registrations", {
         method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ token, fullName, username, password, phone, email })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
-      const data = await res.json().catch(()=>({}));
+      const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Registration failed");
-      setOk({ whatsapp_url: data.whatsapp_url, vcf_url: data.vcf_url });
-    } catch (e:any) {
-      setErr(e.message);
+
+      setOk(true);
+      setWhatsAppUrl(data.whatsapp_url || null);
+      setVcfUrl(data.vcf_url || null);
+      (e.currentTarget as HTMLFormElement).reset();
+    } catch (e: any) {
+      setErr(e.message || "Error");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
   if (ok) {
     return (
-      <div>
-        <h2 className="g-sub">✅ Registration successful</h2>
-        <div className="g-row" style={{ marginTop: 10 }}>
-          <a className="g-btn" href={ok.whatsapp_url} target="_blank" rel="noreferrer">Open WhatsApp</a>
-          <a className="g-btn g-outline" href={ok.vcf_url} target="_blank" rel="noreferrer">Download Contact</a>
+      <div className="space-y-3">
+        <p className="text-green-400">Registration successful.</p>
+        <div className="flex gap-2 flex-wrap">
+          {whatsAppUrl && (
+            <a className="g-btn g-btn-small" href={whatsAppUrl} target="_blank">
+              Open WhatsApp
+            </a>
+          )}
+          {vcfUrl && (
+            <a className="g-btn g-btn-small g-outline" href={vcfUrl} target="_blank">
+              Save Contact (VCF)
+            </a>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={submit} className="g-form" style={{ display: "grid", gap: 12 }}>
-      {err && <div className="g-sub" style={{ color: "red" }}>{err}</div>}
-      <input className="g-input" placeholder="Full name" value={fullName} onChange={e=>setFullName(e.target.value)} required />
-      <input className="g-input" placeholder="Username"  value={username} onChange={e=>setUsername(e.target.value)} required />
-      <input className="g-input" placeholder="Phone (+234… or digits)" value={phone} onChange={e=>setPhone(e.target.value)} required />
-      <input type="email" className="g-input" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} required />
-      <input type="password" className="g-input" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} required />
-      <button className="g-btn" type="submit" disabled={loading}>{loading ? "Submitting…" : "Register"}</button>
+    <form onSubmit={onSubmit} className="space-y-3">
+      <input name="fullName" placeholder="Full name" className="g-input w-full" required />
+      <input name="username" placeholder="Username" className="g-input w-full" required />
+      <input name="password" placeholder="Password" className="g-input w-full" required type="password" />
+      <input name="phone" placeholder="Phone (e.g. +234...)" className="g-input w-full" required />
+      <input name="email" placeholder="Email" className="g-input w-full" required type="email" />
+
+      {err && <p className="text-red-400 text-sm">{err}</p>}
+
+      <button type="submit" className="g-btn" disabled={busy}>
+        {busy ? "Submitting…" : "Submit"}
+      </button>
     </form>
   );
 }

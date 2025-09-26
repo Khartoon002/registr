@@ -3,68 +3,62 @@ import { NextResponse, NextRequest } from "next/server";
 
 const PUBLIC_FILE = /\.(.*)$/;
 
-const ROOT_LOGIN_PATH = "/login";
-const ROOT_SESSION_COOKIES = ["adminSession"]; // cookie for normal admin
-const BOTS_LOGIN_PATH = "/admin/bots/login";
-const BOTS_COOKIE = "bots_admin";
+// keep this ONE source of truth for the cookie name
+const SESSION_COOKIE = process.env.ADMIN_SESSION_COOKIE || "adminSession";
 
-function hasAnyCookie(req: NextRequest, names: string[]) {
-  return names.some((n) => !!req.cookies.get(n)?.value);
+const PUBLIC_PREFIXES = [
+  "/bots/",
+  "/registrations",
+  "/api/auth/login",
+  "/api/auth/logout",
+];
+
+function isPublic(req: NextRequest) {
+  const p = req.nextUrl.pathname;
+  if (p.startsWith("/_next") || p.startsWith("/public") || PUBLIC_FILE.test(p)) return true;
+  return PUBLIC_PREFIXES.some((pre) => p === pre || p.startsWith(pre + "/"));
 }
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+  const hasSession = Boolean(req.cookies.get(SESSION_COOKIE)?.value);
 
-  // --- PUBLIC ROUTES ---
-  if (
-    pathname.startsWith("/bots/") ||
-    pathname === "/registrations" ||
-    pathname.startsWith("/registrations/")
-  ) {
+  // PUBLIC routes: allow
+  if (isPublic(req)) return NextResponse.next();
+
+  // Root login/logout are always public
+  if (pathname === "/login" || pathname === "/logout") {
+    // If already logged in and we hit /login, send user forward once
+    if (pathname === "/login" && hasSession) {
+      const url = req.nextUrl.clone();
+      const next = req.nextUrl.searchParams.get("next") || "/dashboard";
+      url.pathname = next;
+      url.search = ""; // avoid ping-pong on the same URL
+      return NextResponse.redirect(url);
+    }
     return NextResponse.next();
   }
 
-  // --- ALLOW STATIC & API ROUTES ---
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/public") ||
-    pathname.startsWith("/api") ||
-    PUBLIC_FILE.test(pathname)
-  ) {
-    return NextResponse.next();
-  }
-
-  // --- BOTS ADMIN ---
+  // BOTS admin protection (token cookie)
   if (pathname.startsWith("/admin/bots")) {
-    if (
-      pathname.startsWith(BOTS_LOGIN_PATH) ||
-      pathname.startsWith("/admin/bots/logout")
-    ) {
+    if (pathname.startsWith("/admin/bots/login") || pathname.startsWith("/admin/bots/logout")) {
       return NextResponse.next();
     }
-    const token = req.cookies.get(BOTS_COOKIE)?.value || "";
+    const token = req.cookies.get("bots_admin")?.value || "";
     const need = process.env.BOTS_ADMIN_TOKEN || "";
     if (!need || token !== need) {
       const url = req.nextUrl.clone();
-      url.pathname = BOTS_LOGIN_PATH;
+      url.pathname = "/admin/bots/login";
       url.searchParams.set("next", pathname + search);
       return NextResponse.redirect(url);
     }
     return NextResponse.next();
   }
 
-  // --- ROOT LOGIN/LOGOUT ---
-  if (
-    pathname.startsWith(ROOT_LOGIN_PATH) ||
-    pathname === "/logout"
-  ) {
-    return NextResponse.next();
-  }
-
-  // --- EVERYTHING ELSE REQUIRES ROOT SESSION ---
-  if (!hasAnyCookie(req, ROOT_SESSION_COOKIES)) {
+  // Everything else requires the session cookie
+  if (!hasSession) {
     const url = req.nextUrl.clone();
-    url.pathname = ROOT_LOGIN_PATH;
+    url.pathname = "/login";
     url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
   }

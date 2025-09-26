@@ -1,51 +1,36 @@
 "use client";
+
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function NewLink({ packageId }: { packageId: string }) {
-  const [loading, setLoading] = useState(false);
-  const [lastUrl, setLastUrl] = useState<string | null>(null);
-  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  async function createLink() {
-    setLoading(true);
+  async function create() {
     try {
+      setBusy(true); setErr(null);
       const res = await fetch("/api/person-links", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ packageId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to create link");
-      setLastUrl(data.url as string);
-      router.refresh(); // refresh server page to show new link in the list
+      if (!res.ok || !data?.url) throw new Error(data?.error || "Failed");
+      // Optional: copy immediately
+      await navigator.clipboard.writeText(new URL(data.url, location.origin).toString());
     } catch (e: any) {
-      alert(e.message);
+      setErr(e.message || "Error");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
   return (
-    <div className="g-row" style={{ gap: 8 }}>
-      <button className="g-btn g-btn-small" onClick={createLink} disabled={loading}>
-        {loading ? "Creating…" : "Create Link"}
+    <div className="flex flex-wrap items-center gap-2">
+      <button className="g-btn g-btn-small" onClick={create} disabled={busy}>
+        {busy ? "Creating…" : "Create Link"}
       </button>
-      {lastUrl && (
-        <>
-          <a className="g-btn g-btn-small g-outline" href={lastUrl} target="_blank">
-            Open
-          </a>
-          <button
-            className="g-btn g-btn-small g-outline"
-            onClick={() => navigator.clipboard.writeText(
-              `${window.location.origin}${lastUrl}`
-            )}
-          >
-            Copy
-          </button>
-        </>
-      )}
+      {err && <span className="text-xs text-red-400">{err}</span>}
     </div>
   );
 }

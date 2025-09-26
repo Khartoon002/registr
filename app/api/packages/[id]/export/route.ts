@@ -1,62 +1,47 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
 
-export const runtime = 'nodejs'
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const packageId = params.id;
 
-function esc(s: any) {
-  if (s === null || s === undefined) return ''
-  const str = String(s)
-  if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`
-  return str
-}
-
-export async function GET(_: NextRequest, { params }:{ params:{ id:string } }) {
-  const packageId = params.id
-
-  const pkg = await prisma.package.findUnique({
-    where: { id: packageId },
-    select: { id:true, name:true, slug:true, project: { select: { id:true, name:true, slug:true } } }
-  })
-  if (!pkg) return new NextResponse('Package not found', { status:404 })
-
+  // Grab all downlines for this package (only from non-archived projects)
   const rows = await prisma.downline.findMany({
-    where: { packageId },
-    orderBy: { createdAt: 'desc' },
+    where: {
+      packageId,
+      Project: { deleted: false, archivedAt: null },
+    },
+    orderBy: { createdAt: "desc" },
     select: {
       fullName: true,
       username: true,
-      email: true,
       phone: true,
+      email: true,
       uniqueCode: true,
       createdAt: true,
-    }
-  })
+      Project: { select: { name: true } },
+      Package: { select: { name: true } },
+    },
+  });
 
-  const header = [
-    'Project', 'ProjectSlug',
-    'Package', 'PackageSlug',
-    'FullName', 'Username', 'Email', 'Phone', 'UniqueID', 'CreatedAt'
-  ].join(',')
+  let csv = 'Full Name,Username,Phone,Email,Unique Code,Date Registered,Project,Package\n';
+  for (const r of rows) {
+    const vals = [
+      r.fullName ?? "",
+      r.username ?? "",
+      r.phone ?? "",
+      r.email ?? "",
+      r.uniqueCode ?? "",
+      r.createdAt.toISOString(),
+      r.Project?.name ?? "",
+      r.Package?.name ?? "",
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`);
+    csv += vals.join(",") + "\n";
+  }
 
-  const lines = rows.map(r => [
-    esc(pkg.project?.name || ''),
-    esc(pkg.project?.slug || ''),
-    esc(pkg.name),
-    esc(pkg.slug),
-    esc(r.fullName),
-    esc(r.username),
-    esc(r.email ?? ''),
-    esc(r.phone),
-    esc(r.uniqueCode),
-    esc(r.createdAt.toISOString()),
-  ].join(','))
-
-  const csv = [header, ...lines].join('\n')
   return new NextResponse(csv, {
-    status: 200,
     headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${pkg.slug || 'package'}-downlines.csv"`
-    }
-  })
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="package_${packageId}_downlines.csv"`,
+    },
+  });
 }
